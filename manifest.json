@@ -1,0 +1,31 @@
+{
+  "id": "./hairproduto.html",
+  "name": "MakerAI - Beauty Intelligence",
+  "short_name": "MakerAI",
+  "description": "Inteligência de beleza pessoal — MakerAI",
+  "start_url": "./hairproduto.html",
+  "scope": "./",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui", "browser"],
+  "orientation": "any",
+  "background_color": "#fefefe",
+  "theme_color": "#111111",
+  "lang": "pt-BR",
+  "dir": "ltr",
+  "categories": ["lifestyle", "personalization"],
+  "prefer_related_applications": false,
+  "icons": [
+    {
+      "src": "makerai-pwa-icon.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "makerai-pwa-icon.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}
