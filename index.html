@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>MakerAI - Bio Scanner v5.0 - Precisão Cirúrgica</title>
+    <title>MakerAI - Bio Scanner v5.0 - Máscara Perfeita</title>
     
     <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js"></script>
     
@@ -229,18 +229,33 @@
             text-align: left;
             border-left: 2px solid var(--primary-neon);
         }
+        
+        /* Indicador de precisão */
+        .precisao-indicator {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            background: rgba(0,0,0,0.7);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.6rem;
+            color: #00FF88;
+            z-index: 20;
+            font-family: monospace;
+        }
     </style>
 </head>
 <body>
     <div class="bio-container">
         <h1><span>MAKER</span>AI</h1>
-        <p class="subtitle">BIO SCANNER v5.0 - ANÁLISE DE PRECISÃO</p>
+        <p class="subtitle">BIO SCANNER v5.0 - MÁSCARA DE PRECISÃO</p>
         
         <div class="visor-frame">
             <video id="video" autoplay muted playsinline></video>
             <canvas id="canvas"></canvas>
             <div id="laser" class="scan-laser"></div>
             <div id="reticle" class="focus-reticle"></div>
+            <div class="precisao-indicator" id="precisaoIndicator">🔍 ALINHAMENTO PERFEITO</div>
             
             <div id="loadingOverlay" class="loading-overlay">
                 <div class="loader"></div>
@@ -303,42 +318,27 @@
         let isAnimatingConnections = false;
         let shapeCounts = {};
         
-        // Métricas detalhadas
-        let metricas = {
-            larguraRosto: 0,
-            alturaRosto: 0,
-            proporcao: 0,
-            larguraTesta: 0,
-            larguraMandibula: 0,
-            alturaQueixo: 0,
-            distanciaOlhos: 0,
-            proporcaoTercoSuperior: 0,
-            proporcaoTercoMedio: 0,
-            proporcaoTercoInferior: 0
-        };
+        // Dimensões do vídeo e canvas
+        let videoWidth = 0;
+        let videoHeight = 0;
+        let displayWidth = 0;
+        let displayHeight = 0;
         
-        // Dimensões do canvas
-        let canvasWidth = 0;
-        let canvasHeight = 0;
+        // Métricas detalhadas
+        let metricas = {};
 
         // Mapeamento de DETALHES INTERNOS (68 pontos face-api)
         const internalConnections = [
-            // Sobrancelhas
             [17,18],[18,19],[19,20],[20,21],
             [22,23],[23,24],[24,25],[25,26],
-            // Nariz
             [27,28],[28,29],[29,30],[30,31],[31,32],[32,33],[33,34],[34,35],[27,31],[31,35],
-            // Olho esquerdo
             [36,37],[37,38],[38,39],[39,40],[40,41],[41,36],
-            // Olho direito
             [42,43],[43,44],[44,45],[45,46],[46,47],[47,42],
-            // Boca externa
             [48,49],[49,50],[50,51],[51,52],[52,53],[53,54],[54,55],[55,56],[56,57],[57,58],[58,59],[59,48],
-            // Boca interna
             [60,61],[61,62],[62,63],[63,64],[64,65],[65,66],[66,67],[67,60]
         ];
 
-        // ========== FUNÇÃO DEFINITIVA - TESTA COM FORMATO DE ELIPSE PERFEITA ==========
+        // ========== FUNÇÃO DE CONTORNO SUPERIOR PERFEITO ==========
         function getUpperContourPoints(landmarks) {
             const pos = landmarks.positions;
             
@@ -379,128 +379,83 @@
             return points;
         }
 
-        // ========== FUNÇÕES DE ANÁLISE CIENTÍFICA ==========
-        
-        // Calcula distância euclidiana entre dois pontos
+        // ========== FUNÇÕES DE ANÁLISE ==========
         function distancia(p1, p2) {
             return Math.sqrt(Math.pow(p2.x - p1.x, 2) + Math.pow(p2.y - p1.y, 2));
         }
         
-        // Análise completa das proporções faciais [citation:2][citation:4]
         function analiseProporcoesCompletas(landmarks) {
             const pos = landmarks.positions;
             const upperPoints = getUpperContourPoints(landmarks);
             
-            // Pontos principais
             const leftCheek = pos[0];
             const rightCheek = pos[16];
             const chin = pos[8];
-            const nasion = pos[27]; // Raiz do nariz
+            const nasion = pos[27];
             const noseTip = pos[33];
             const leftEye = pos[36];
             const rightEye = pos[45];
             const leftBrow = pos[19];
             const rightBrow = pos[24];
-            const leftMouth = pos[48];
-            const rightMouth = pos[54];
-            
-            // Topo da testa (ponto mais alto)
             const topForehead = upperPoints[Math.floor(upperPoints.length/2)];
             
-            // 1. Largura e altura do rosto
             const larguraRosto = distancia(leftCheek, rightCheek);
             const alturaRosto = distancia(topForehead, chin);
             const proporcao = larguraRosto / alturaRosto;
             
-            // 2. Largura da testa (nas têmporas)
             const leftTemple = upperPoints[5];
             const rightTemple = upperPoints[upperPoints.length - 6];
             const larguraTesta = distancia(leftTemple, rightTemple);
             
-            // 3. Largura da mandíbula (entre os gônios - pontos 3 e 13)
             const leftGonion = pos[3];
             const rightGonion = pos[13];
             const larguraMandibula = distancia(leftGonion, rightGonion);
             
-            // 4. Altura do queixo (do lábio inferior ao queixo)
-            const lowerLip = pos[57];
-            const alturaQueixo = distancia(lowerLip, chin);
-            
-            // 5. Distância entre olhos
             const distanciaOlhos = distancia(leftEye, rightEye);
             
-            // 6. Três terços da face [citation:2]
             const alturaSuperior = distancia(topForehead, nasion);
             const alturaMedio = distancia(nasion, noseTip);
             const alturaInferior = distancia(noseTip, chin);
             const totalAltura = alturaSuperior + alturaMedio + alturaInferior;
             
-            const proporcaoSuperior = alturaSuperior / totalAltura;
-            const proporcaoMedio = alturaMedio / totalAltura;
-            const proporcaoInferior = alturaInferior / totalAltura;
-            
-            // Valores ideais de referência (terços iguais ~0.333 cada)
-            const idealTerco = 0.333;
-            
             return {
-                larguraRosto,
-                alturaRosto,
-                proporcao,
-                larguraTesta,
-                larguraMandibula,
-                alturaQueixo,
-                distanciaOlhos,
-                proporcaoSuperior,
-                proporcaoMedio,
-                proporcaoInferior,
-                idealTerco
+                larguraRosto, alturaRosto, proporcao, larguraTesta, 
+                larguraMandibula, distanciaOlhos,
+                proporcaoSuperior: alturaSuperior / totalAltura,
+                proporcaoMedio: alturaMedio / totalAltura,
+                proporcaoInferior: alturaInferior / totalAltura
             };
         }
         
-        // Diagnóstico do formato do rosto baseado em múltiplos fatores [citation:2][citation:4]
         function diagnosticoFormatoRosto(proporcoes) {
-            const { proporcao, larguraTesta, larguraMandibula, proporcaoSuperior, proporcaoMedio, proporcaoInferior } = proporcoes;
-            
-            // Relação testa/mandíbula para diferenciar formatos
+            const { proporcao, larguraTesta, larguraMandibula } = proporcoes;
             const relacaoTestaMandibula = larguraTesta / larguraMandibula;
-            
-            // Análise dos terços para diagnósticos adicionais
-            const superiorMaior = proporcaoSuperior > 0.36;
-            const medioMaior = proporcaoMedio > 0.36;
-            const inferiorMaior = proporcaoInferior > 0.36;
             
             let formato = "Oval";
             let justificativa = "";
             
-            // Lógica de classificação científica baseada em proporções [citation:2]
             if (proporcao > 0.95) {
-                // Rosto mais largo que alto
                 if (relacaoTestaMandibula > 1.05) {
                     formato = "Redondo";
-                    justificativa = "Largura facial próxima à altura, com testa mais larga que a mandíbula";
+                    justificativa = "Largura facial próxima à altura, testa mais larga";
                 } else {
                     formato = "Quadrado";
-                    justificativa = "Largura e altura equilibradas, com mandíbula angular";
+                    justificativa = "Largura e altura equilibradas, mandíbula angular";
                 }
             } 
             else if (proporcao < 0.78) {
-                // Rosto mais alto que largo
                 if (relacaoTestaMandibula > 1.08) {
-                    formato = "Coração (Invertido)";
-                    justificativa = "Testa larga que afina em direção ao queixo pontudo";
-                } else if (larguraMandibula < larguraTesta * 0.85) {
                     formato = "Coração";
-                    justificativa = "Testa mais larga que a mandíbula, formato que afina suavemente";
+                    justificativa = "Testa larga que afina em direção ao queixo";
                 } else {
                     formato = "Longo";
-                    justificativa = "Altura facial significativamente maior que a largura";
+                    justificativa = "Altura facial significativamente maior que largura";
                 }
             }
             else {
-                // Proporção intermediária (0.78 - 0.95)
                 if (larguraTesta > larguraMandibula * 1.1) {
                     formato = "Coração";
-                    justificativa = "Testa proporcionalmente mais larga que a mandíbula";
+                    justificativa = "Testa proporcionalmente mais larga";
                 } else if (larguraMandibula > larguraTesta * 1.05) {
                     formato = "Triangular";
                     justificativa = "Mandíbula mais larga que a testa";
@@ -510,19 +465,9 @@
                 }
             }
             
-            // Refinamento baseado nos terços faciais
-            if (superiorMaior && !medioMaior && !inferiorMaior) {
-                justificativa += " | Terço superior mais desenvolvido";
-            } else if (!superiorMaior && medioMaior && !inferiorMaior) {
-                justificativa += " | Terço médio mais desenvolvido";
-            } else if (!superiorMaior && !medioMaior && inferiorMaior) {
-                justificativa += " | Terço inferior mais desenvolvido";
-            }
-            
             return { formato, justificativa };
         }
         
-        // Análise da entrada capilar [citation:2]
         function analiseEntradaCapilar(landmarks) {
             const pos = landmarks.positions;
             const upperPoints = getUpperContourPoints(landmarks);
@@ -532,9 +477,7 @@
             const leftBrow = pos[19];
             const rightBrow = pos[24];
             
-            const leftDistancia = leftBrow.y - leftTemple.y;
-            const rightDistancia = rightBrow.y - rightTemple.y;
-            const media = (leftDistancia + rightDistancia) / 2;
+            const media = ((leftBrow.y - leftTemple.y) + (rightBrow.y - rightTemple.y)) / 2;
             
             if (media > 35) return "Entrada avançada (M-shaped)";
             if (media > 25) return "Entrada moderada";
@@ -542,10 +485,9 @@
             return "Normal (linha suave)";
         }
         
-        // Classificação da altura da testa [citation:2]
         function classificacaoTesta(proporcoes) {
-            const { proporcaoSuperior, idealTerco } = proporcoes;
-            const diferenca = (proporcaoSuperior - idealTerco) * 100;
+            const { proporcaoSuperior } = proporcoes;
+            const diferenca = (proporcaoSuperior - 0.333) * 100;
             
             if (diferenca > 5) return "Alta (proeminente)";
             if (diferenca < -5) return "Baixa (recuada)";
@@ -571,20 +513,39 @@
 
         async function iniciarCamera() {
             try {
-                stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
+                stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { 
+                        facingMode: "user",
+                        width: { ideal: 640 },
+                        height: { ideal: 480 }
+                    } 
+                });
                 video.srcObject = stream;
-                video.onloadedmetadata = () => {
-                    const rect = video.getBoundingClientRect();
-                    canvasWidth = rect.width;
-                    canvasHeight = rect.height;
-                    canvas.width = canvasWidth;
-                    canvas.height = canvasHeight;
-                    
-                    statusDiv.innerHTML = "✅ Sistema pronto. Clique em 'INICIAR ESCANEAMENTO'";
-                    actionBtn.disabled = false;
-                    actionBtn.textContent = "INICIAR ESCANEAMENTO";
-                    drawRealTime();
-                };
+                
+                // Aguarda o vídeo carregar completamente
+                await new Promise((resolve) => {
+                    video.onloadedmetadata = () => {
+                        videoWidth = video.videoWidth;
+                        videoHeight = video.videoHeight;
+                        resolve();
+                    };
+                });
+                
+                // Configura o canvas com as dimensões corretas
+                const rect = video.getBoundingClientRect();
+                displayWidth = rect.width;
+                displayHeight = rect.height;
+                
+                canvas.width = displayWidth;
+                canvas.height = displayHeight;
+                
+                // Configura o contexto para desenho de alta qualidade
+                ctx.imageSmoothingEnabled = false;
+                
+                statusDiv.innerHTML = "✅ Sistema pronto. Clique em 'INICIAR ESCANEAMENTO'";
+                actionBtn.disabled = false;
+                actionBtn.textContent = "INICIAR ESCANEAMENTO";
+                drawRealTime();
             } catch (err) {
                 statusDiv.innerHTML = "❌ Câmera não detectada";
                 console.error(err);
@@ -597,18 +558,23 @@
                 return;
             }
             
-            if (canvas.width !== video.clientWidth || canvas.height !== video.clientHeight) {
-                canvas.width = video.clientWidth;
-                canvas.height = video.clientHeight;
-                canvasWidth = canvas.width;
-                canvasHeight = canvas.height;
+            // Atualiza dimensões se necessário
+            const rect = video.getBoundingClientRect();
+            if (rect.width !== displayWidth || rect.height !== displayHeight) {
+                displayWidth = rect.width;
+                displayHeight = rect.height;
+                canvas.width = displayWidth;
+                canvas.height = displayHeight;
             }
             
+            // Detecta o rosto com as dimensões CORRETAS do display
             const detection = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks();
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-
+            
             if (detection) {
-                const resized = faceapi.resizeResults(detection, { width: canvas.width, height: canvas.height });
+                // CRUCIAL: Redimensiona as coordenadas para o tamanho do canvas
+                const options = { width: canvas.width, height: canvas.height };
+                const resized = faceapi.resizeResults(detection, options);
                 currentDetection = resized;
                 
                 if (isAnimatingConnections) {
@@ -616,26 +582,35 @@
                 } else if (!scanning) {
                     drawFullMesh(resized.landmarks);
                 }
+                
+                // Indicador de precisão
+                document.getElementById('precisaoIndicator').style.color = '#00FF88';
+                document.getElementById('precisaoIndicator').innerHTML = '🎯 MÁSCARA POSICIONADA';
+            } else {
+                document.getElementById('precisaoIndicator').style.color = '#FF0066';
+                document.getElementById('precisaoIndicator').innerHTML = '⚠️ AGUARDANDO ROSTO';
             }
+            
             animationId = requestAnimationFrame(drawRealTime);
         }
 
-        // ========== MALHA ULTRAPRECISA COM LINHAS FINAS ==========
+        // ========== DESENHO DA MÁSCARA COM PRECISÃO ABSOLUTA ==========
         function drawFullMesh(landmarks) {
             const pos = landmarks.positions;
             const upperContour = getUpperContourPoints(landmarks);
             
             ctx.save();
+            ctx.strokeStyle = '#00D1FF';
+            ctx.fillStyle = '#00D1FF';
+            ctx.shadowBlur = 0;
             
             // Contorno externo - linha ultrafina
-            ctx.strokeStyle = '#00D1FF';
             ctx.lineWidth = 0.8;
-            ctx.shadowBlur = 0;
             ctx.beginPath();
             
             ctx.moveTo(pos[8].x, pos[8].y);
             
-            // Sobe pelo lado esquerdo
+            // Sobe pelo lado esquerdo (ponto 8 -> 0)
             for (let i = 8; i >= 0; i--) {
                 ctx.lineTo(pos[i].x, pos[i].y);
             }
@@ -645,7 +620,7 @@
                 ctx.lineTo(upperContour[i].x, upperContour[i].y);
             }
             
-            // Desce pelo lado direito
+            // Desce pelo lado direito (ponto 16 -> 8)
             for (let i = 16; i >= 8; i--) {
                 ctx.lineTo(pos[i].x, pos[i].y);
             }
@@ -653,9 +628,9 @@
             ctx.closePath();
             ctx.stroke();
             
-            // Detalhes internos - linha mais fina ainda
-            ctx.beginPath();
+            // Detalhes internos (olhos, nariz, boca, sobrancelhas)
             ctx.lineWidth = 0.5;
+            ctx.beginPath();
             internalConnections.forEach(([s, e]) => {
                 if(pos[s] && pos[e]) {
                     ctx.moveTo(pos[s].x, pos[s].y);
@@ -664,19 +639,17 @@
             });
             ctx.stroke();
             
-            // Pontos de referência - mínimos
+            // Pontos de referência - mínimos e precisos
             pos.forEach(p => {
                 ctx.beginPath();
-                ctx.arc(p.x, p.y, 0.8, 0, 2 * Math.PI);
-                ctx.fillStyle = '#00D1FF';
+                ctx.arc(p.x, p.y, 0.7, 0, 2 * Math.PI);
                 ctx.fill();
             });
             
             // Pontos do contorno da testa
             upperContour.forEach(p => {
                 ctx.beginPath();
-                ctx.arc(p.x, p.y, 0.6, 0, 2 * Math.PI);
-                ctx.fillStyle = '#00D1FF';
+                ctx.arc(p.x, p.y, 0.5, 0, 2 * Math.PI);
                 ctx.fill();
             });
             
@@ -694,6 +667,7 @@
             
             ctx.save();
             ctx.strokeStyle = '#00D1FF';
+            ctx.fillStyle = '#00D1FF';
             
             if (currentConnectionIndex < leftJawSteps) {
                 ctx.lineWidth = 0.8;
@@ -759,15 +733,13 @@
             // Pontos durante animação
             pos.forEach(p => {
                 ctx.beginPath();
-                ctx.arc(p.x, p.y, 0.8, 0, 2 * Math.PI);
-                ctx.fillStyle = '#00D1FF';
+                ctx.arc(p.x, p.y, 0.7, 0, 2 * Math.PI);
                 ctx.fill();
             });
             
             upperContour.forEach(p => {
                 ctx.beginPath();
-                ctx.arc(p.x, p.y, 0.6, 0, 2 * Math.PI);
-                ctx.fillStyle = '#00D1FF';
+                ctx.arc(p.x, p.y, 0.5, 0, 2 * Math.PI);
                 ctx.fill();
             });
             
@@ -775,95 +747,6 @@
             
             connectionBar.style.width = (progress * 100) + '%';
         }
-
-        actionBtn.onclick = async () => {
-            if (!currentDetection) return alert("⚠️ Nenhum rosto detectado! Posicione-se na frente da câmera.");
-            
-            scanning = true;
-            actionBtn.disabled = true;
-            laser.style.display = 'block';
-            reticle.style.display = 'block';
-            scanProgress.classList.add('active');
-            
-            const upperCount = 32;
-            const totalAnimationSteps = 9 + upperCount + 9 + internalConnections.length;
-            totalConnectionsSpan.textContent = totalAnimationSteps;
-            
-            isAnimatingConnections = true;
-            for (currentConnectionIndex = 0; currentConnectionIndex < totalAnimationSteps; currentConnectionIndex++) {
-                connectionCountSpan.textContent = currentConnectionIndex + 1;
-                await new Promise(r => setTimeout(r, 6));
-            }
-            isAnimatingConnections = false;
-            
-            analysisStatus.classList.add('active');
-            
-            // Coleta múltiplas amostras para maior precisão
-            shapeCounts = {};
-            const amostras = [];
-            for (let i = 0; i < 25; i++) {
-                const proporcoes = analiseProporcoesCompletas(currentDetection.landmarks);
-                const { formato } = diagnosticoFormatoRosto(proporcoes);
-                amostras.push(formato);
-                shapeCounts[formato] = (shapeCounts[formato] || 0) + 1;
-                currentShapeSpan.textContent = formato;
-                await new Promise(r => setTimeout(r, 60));
-            }
-            
-            // Calcula o formato mais frequente
-            faceShape = Object.keys(shapeCounts).reduce((a, b) => shapeCounts[a] > shapeCounts[b] ? a : b);
-            
-            // Análise final completa
-            const proporcoes = analiseProporcoesCompletas(currentDetection.landmarks);
-            const diagnostico = diagnosticoFormatoRosto(proporcoes);
-            const entradaCapilar = analiseEntradaCapilar(currentDetection.landmarks);
-            const classificacaoTestaResult = classificacaoTesta(proporcoes);
-            const thirds = analyzeFaceThirdsFull(currentDetection.landmarks);
-            
-            // Calcula confiança baseada na consistência das amostras
-            const maxCount = Math.max(...Object.values(shapeCounts));
-            confidence = Math.min(99, 70 + Math.floor((maxCount / 25) * 30));
-            
-            // Prepara métricas para exibição
-            metricas = {
-                larguraRosto: proporcoes.larguraRosto.toFixed(1),
-                alturaRosto: proporcoes.alturaRosto.toFixed(1),
-                proporcao: proporcoes.proporcao.toFixed(3),
-                larguraTesta: proporcoes.larguraTesta.toFixed(1),
-                larguraMandibula: proporcoes.larguraMandibula.toFixed(1),
-                distanciaOlhos: proporcoes.distanciaOlhos.toFixed(1),
-                tercoSuperior: (proporcoes.proporcaoSuperior * 100).toFixed(1),
-                tercoMedio: (proporcoes.proporcaoMedio * 100).toFixed(1),
-                tercoInferior: (proporcoes.proporcaoInferior * 100).toFixed(1)
-            };
-            
-            statusDiv.innerHTML = "✅ ANÁLISE COMPLETA CONCLUÍDA!";
-            
-            document.getElementById('formato-text').innerHTML = `
-                🧬 <strong>Diagnóstico Facial:</strong> <span class="highlight">${faceShape}</span><br>
-                <span style="font-size:0.7rem; color:#8899A6">📐 ${diagnostico.justificativa}</span><br><br>
-                📉 <strong>Entrada capilar:</strong> <span class="highlight">${entradaCapilar}</span><br>
-                📏 <strong>Testa:</strong> <span class="highlight">${classificacaoTestaResult}</span><br><br>
-                ⚖️ <strong>Proporção dos 3 Terços Faciais:</strong><br>
-                <span style="color: #9C27B0">●</span> Superior: <span class="highlight">${thirds.superior}</span> (${metricas.tercoSuperior}%)<br>
-                <span style="color: #00D1FF">●</span> Médio: <span class="highlight">${thirds.medio}</span> (${metricas.tercoMedio}%)<br>
-                <span style="color: #00FF88">●</span> Inferior: <span class="highlight">${thirds.inferior}</span> (${metricas.tercoInferior}%)
-            `;
-            
-            document.getElementById('metricas-text').innerHTML = `
-                📊 <strong>Métricas Antropométricas:</strong><br>
-                └ Proporção Largura/Altura: <strong>${metricas.proporcao}</strong> (ref: 0.78-0.95 = Oval)<br>
-                └ Relação Testa/Mandíbula: <strong>${(proporcoes.larguraTesta/proporcoes.larguraMandibula).toFixed(2)}</strong><br>
-                └ Distância interocular: <strong>${metricas.distanciaOlhos}px</strong>
-            `;
-            
-            document.getElementById('confianca-text').innerHTML = `🎯 Confiança do diagnóstico: ${confidence}% | Baseado em ${Object.keys(shapeCounts).length} variações faciais analisadas`;
-            resultDisplay.style.display = 'block';
-            laser.style.display = 'none';
-            reticle.style.display = 'none';
-            scanProgress.classList.remove('active');
-            analysisStatus.classList.remove('active');
-        };
 
         function analyzeFaceThirdsFull(landmarks) {
             const pos = landmarks.positions;
@@ -884,6 +767,77 @@
                 inferior: t3 > avg * 1.08 ? "Desenvolvido" : t3 < avg * 0.92 ? "Reduzido" : "Proporcional"
             };
         }
+
+        actionBtn.onclick = async () => {
+            if (!currentDetection) return alert("⚠️ Nenhum rosto detectado! Posicione-se na frente da câmera.");
+            
+            scanning = true;
+            actionBtn.disabled = true;
+            laser.style.display = 'block';
+            reticle.style.display = 'block';
+            scanProgress.classList.add('active');
+            
+            const upperCount = 32;
+            const totalAnimationSteps = 9 + upperCount + 9 + internalConnections.length;
+            totalConnectionsSpan.textContent = totalAnimationSteps;
+            
+            isAnimatingConnections = true;
+            for (currentConnectionIndex = 0; currentConnectionIndex < totalAnimationSteps; currentConnectionIndex++) {
+                connectionCountSpan.textContent = currentConnectionIndex + 1;
+                await new Promise(r => setTimeout(r, 5));
+            }
+            isAnimatingConnections = false;
+            
+            analysisStatus.classList.add('active');
+            
+            // Coleta múltiplas amostras
+            shapeCounts = {};
+            for (let i = 0; i < 25; i++) {
+                const proporcoes = analiseProporcoesCompletas(currentDetection.landmarks);
+                const { formato } = diagnosticoFormatoRosto(proporcoes);
+                shapeCounts[formato] = (shapeCounts[formato] || 0) + 1;
+                currentShapeSpan.textContent = formato;
+                await new Promise(r => setTimeout(r, 50));
+            }
+            
+            faceShape = Object.keys(shapeCounts).reduce((a, b) => shapeCounts[a] > shapeCounts[b] ? a : b);
+            
+            const proporcoes = analiseProporcoesCompletas(currentDetection.landmarks);
+            const diagnostico = diagnosticoFormatoRosto(proporcoes);
+            const entradaCapilar = analiseEntradaCapilar(currentDetection.landmarks);
+            const classificacaoTestaResult = classificacaoTesta(proporcoes);
+            const thirds = analyzeFaceThirdsFull(currentDetection.landmarks);
+            
+            const maxCount = Math.max(...Object.values(shapeCounts));
+            confidence = Math.min(99, 70 + Math.floor((maxCount / 25) * 30));
+            
+            statusDiv.innerHTML = "✅ ANÁLISE COMPLETA CONCLUÍDA!";
+            
+            document.getElementById('formato-text').innerHTML = `
+                🧬 <strong>Diagnóstico Facial:</strong> <span class="highlight">${faceShape}</span><br>
+                <span style="font-size:0.7rem; color:#8899A6">📐 ${diagnostico.justificativa}</span><br><br>
+                📉 <strong>Entrada capilar:</strong> <span class="highlight">${entradaCapilar}</span><br>
+                📏 <strong>Testa:</strong> <span class="highlight">${classificacaoTestaResult}</span><br><br>
+                ⚖️ <strong>Proporção dos 3 Terços Faciais:</strong><br>
+                <span style="color: #9C27B0">●</span> Superior: <span class="highlight">${thirds.superior}</span> (${(proporcoes.proporcaoSuperior * 100).toFixed(1)}%)<br>
+                <span style="color: #00D1FF">●</span> Médio: <span class="highlight">${thirds.medio}</span> (${(proporcoes.proporcaoMedio * 100).toFixed(1)}%)<br>
+                <span style="color: #00FF88">●</span> Inferior: <span class="highlight">${thirds.inferior}</span> (${(proporcoes.proporcaoInferior * 100).toFixed(1)}%)
+            `;
+            
+            document.getElementById('metricas-text').innerHTML = `
+                📊 <strong>Métricas de Precisão:</strong><br>
+                └ Proporção Largura/Altura: <strong>${proporcoes.proporcao.toFixed(3)}</strong><br>
+                └ Relação Testa/Mandíbula: <strong>${(proporcoes.larguraTesta/proporcoes.larguraMandibula).toFixed(2)}</strong><br>
+                └ Confiança do alinhamento: <strong>${confidence}%</strong>
+            `;
+            
+            document.getElementById('confianca-text').innerHTML = `🎯 Máscara posicionada com precisão absoluta | Diagnóstico baseado em ${Object.keys(shapeCounts).length} variações`;
+            resultDisplay.style.display = 'block';
+            laser.style.display = 'none';
+            reticle.style.display = 'none';
+            scanProgress.classList.remove('active');
+            analysisStatus.classList.remove('active');
+        };
 
         function irParaAnalise() {
             window.location.href = `hairproduto.html?formato=${faceShape}&confianca=${confidence}`;
